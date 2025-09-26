@@ -13,10 +13,10 @@
             align-items: center;
             min-height: 100vh;
             margin: 0;
-            background-color: #121212; /* Darker background for better contrast */
+            background-color: #121212;
             color: #e0e0e0;
             text-align: center;
-            -webkit-tap-highlight-color: transparent; /* Disable tap highlight on mobile */
+            -webkit-tap-highlight-color: transparent;
         }
 
         #app {
@@ -45,45 +45,112 @@
         }
 
         .compass-rose {
-            width: 280px;
-            height: 280px;
-            background: radial-gradient(circle, #3a3a3a, #2a2a2a);
+            width: 300px;
+            height: 300px;
+            background-color: #2c3e50;
+            background-image:
+                conic-gradient(from 90deg, 
+                    rgba(255,255,255,0.4) 0deg, rgba(255,255,255,0.4) 1deg, transparent 1deg, transparent 89deg,
+                    rgba(255,255,255,0.6) 89deg, rgba(255,255,255,0.6) 91deg, transparent 91deg, transparent 179deg,
+                    rgba(255,255,255,0.4) 179deg, rgba(255,255,255,0.4) 181deg, transparent 181deg, transparent 269deg,
+                    rgba(255,255,255,0.6) 269deg, rgba(255,255,255,0.6) 271deg, transparent 271deg, transparent 360deg
+                ),
+                conic-gradient(from 0deg, 
+                    #bdc3c7 0deg, #bdc3c7 1deg, transparent 1deg, transparent 29deg,
+                    #bdc3c7 29deg, #bdc3c7 31deg, transparent 31deg, transparent 59deg,
+                    #bdc3c7 59deg, #bdc3c7 61deg, transparent 61deg, transparent 89deg,
+                    #bdc3c7 89deg, #bdc3c7 91deg, transparent 91deg, transparent 360deg
+                );
             border-radius: 50%;
-            border: 5px solid #444;
+            border: 10px solid #7f8c8d;
             position: relative;
             display: flex;
             justify-content: center;
             align-items: center;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), inset 0 4px 10px rgba(0,0,0,0.7);
-            transition: transform 0.2s linear; /* Smooth rotation */
+            box-shadow: 
+                0 0 10px rgba(0,0,0,0.5),
+                inset 0 0 25px rgba(0,0,0,0.5);
+        }
+        
+        /* Glassy effect overlay */
+        .compass-rose::after {
+            content: '';
+            position: absolute;
+            width: 90%;
+            height: 90%;
+            background: radial-gradient(circle at 50% 30%, rgba(255,255,255,0.2), rgba(255,255,255,0) 70%);
+            border-radius: 50%;
         }
 
-        /* Needle always points up, the rose rotates */
-        .compass-rose::before {
+        #needle {
+            width: 280px;
+            height: 280px;
+            position: absolute;
+            z-index: 10;
+            transition: transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28); /* Smooth, slightly bouncy rotation */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        /* North pointer */
+        #needle::before {
             content: '';
             width: 0;
             height: 0;
             border-left: 12px solid transparent;
             border-right: 12px solid transparent;
-            border-bottom: 140px solid #e74c3c; /* Red needle tip */
+            border-bottom: 140px solid #e74c3c;
             position: absolute;
             top: 0;
-            z-index: 10;
+        }
+
+        /* South pointer */
+        #needle::after {
+            content: '';
+            width: 0;
+            height: 0;
+            border-left: 12px solid transparent;
+            border-right: 12px solid transparent;
+            border-top: 140px solid #ecf0f1;
+            position: absolute;
+            bottom: 0;
         }
         
+        /* Pivot point */
+        .pivot {
+            width: 20px;
+            height: 20px;
+            background: #ecf0f1;
+            border-radius: 50%;
+            position: absolute;
+            z-index: 11;
+            border: 3px solid #34495e;
+        }
+
         /* Cardinal directions */
         .rose-text {
             position: absolute;
-            font-size: 1.8em;
-            font-weight: bold;
-            color: #ccc;
+            font-size: 1.5em;
+            font-weight: 600;
+            color: #ecf0f1;
             z-index: 5;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.7);
         }
         .rose-n { top: 10px; }
         .rose-s { bottom: 10px; }
-        .rose-e { right: 20px; top: 50%; transform: translateY(-50%);}
-        .rose-w { left: 20px; top: 50%; transform: translateY(-50%);}
+        .rose-e { right: 10px; top: 50%; transform: translateY(-50%); }
+        .rose-w { left: 10px; top: 50%; transform: translateY(-50%); }
 
+        /* Inter-cardinal directions */
+        .rose-text-small {
+            font-size: 1.1em;
+            font-weight: 400;
+        }
+        .rose-ne { top: 50px; right: 50px; }
+        .rose-se { bottom: 50px; right: 50px; }
+        .rose-sw { bottom: 50px; left: 50px; }
+        .rose-nw { top: 50px; left: 50px; }
 
         #heading {
             font-size: 3em;
@@ -140,10 +207,16 @@
         <h1>Device Compass</h1>
         <div id="compass-container" class="hidden">
             <div class="compass-rose">
+                <div id="needle"></div>
+                <div class="pivot"></div>
                 <div class="rose-text rose-n">N</div>
                 <div class="rose-text rose-e">E</div>
                 <div class="rose-text rose-s">S</div>
                 <div class="rose-text rose-w">W</div>
+                <div class="rose-text rose-text-small rose-ne">NE</div>
+                <div class="rose-text rose-text-small rose-se">SE</div>
+                <div class="rose-text rose-text-small rose-sw">SW</div>
+                <div class="rose-text rose-text-small rose-nw">NW</div>
             </div>
             <p id="heading">--°</p>
         </div>
@@ -155,26 +228,21 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const compassContainer = document.getElementById('compass-container');
-            const compassRose = document.querySelector('.compass-rose');
+            const needle = document.getElementById('needle');
             const headingDisplay = document.getElementById('heading');
             const permissionBtn = document.getElementById('permission-btn');
             const errorMessage = document.getElementById('error-message');
 
-            // Hide the error message initially
             errorMessage.classList.add('hidden');
 
-            // Main entry point: Check for API support
             if ('DeviceOrientationEvent' in window && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                // iOS 13+ and other browsers that require explicit permission
                 permissionBtn.addEventListener('click', requestPermissionForIOS);
             } else if ('DeviceOrientationEvent' in window) {
-                 // Non-iOS 13+ devices that support the API without a button click
                 permissionBtn.addEventListener('click', () => {
                    initCompass();
                    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
                 });
             } else {
-                // Browser does not support the API
                 showError('Sorry, your browser does not support the Device Orientation API.');
             }
 
@@ -182,11 +250,9 @@
                 DeviceOrientationEvent.requestPermission()
                     .then(permissionState => {
                         if (permissionState === 'granted') {
-                            // Permission granted, set up the event listener
                             window.addEventListener('deviceorientationabsolute', handleOrientation, true);
                             initCompass();
                         } else {
-                            // Permission denied
                             showError('Permission to access device orientation was denied.');
                         }
                     })
@@ -197,28 +263,21 @@
             }
 
             function initCompass() {
-                // Hide the button and show the compass UI
                 permissionBtn.classList.add('hidden');
                 compassContainer.classList.remove('hidden');
             }
 
             function handleOrientation(event) {
-                // event.alpha is the compass direction in degrees (0-360)
-                // 0 is North, 90 is East, 180 is South, 270 is West
-                // We use webkitCompassHeading for iOS compatibility
                 let alpha = event.alpha;
                 if(typeof event.webkitCompassHeading !== "undefined") {
                     alpha = event.webkitCompassHeading; 
                 }
 
                 if (alpha !== null) {
-                    // We rotate the compass rose instead of the needle.
-                    // The needle (::before pseudo-element) always points "up" relative to the screen.
-                    // The rose rotates underneath it to show the correct direction.
-                    // The minus sign is because we rotate the background opposite to the device's turn.
-                    compassRose.style.transform = `rotate(${-alpha}deg)`;
+                    // Rotate the needle to point to the correct direction (alpha)
+                    // The compass rose background remains static.
+                    needle.style.transform = `rotate(${alpha}deg)`;
                     
-                    // Update the text display
                     headingDisplay.textContent = `${Math.round(alpha)}°`;
                 } else {
                     showError("Could not retrieve compass heading. Your device may not have a magnetometer.");
@@ -235,3 +294,4 @@
     </script>
 </body>
 </html>
+
