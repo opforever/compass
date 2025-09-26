@@ -4,6 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Device Compass</title>
+    <script type="module">
+        // DO NOT CHANGE THIS SECTION
+        // This is a mock Firebase configuration for demonstration.
+        // In a real environment, this would be populated with your actual Firebase project config.
+        if (typeof __firebase_config === 'undefined') {
+            const FIREBASE_CONFIG = {
+                apiKey: "MOCK_API_KEY",
+                authDomain: "MOCK_AUTH_DOMAIN",
+                projectId: "MOCK_PROJECT_ID",
+                storageBucket: "MOCK_STORAGE_BUCKET",
+                messagingSenderId: "MOCK_SENDER_ID",
+                appId: "MOCK_APP_ID"
+            };
+            window.__firebase_config = JSON.stringify(FIREBASE_CONFIG);
+        }
+        if (typeof __app_id === 'undefined') {
+            window.__app_id = 'default-compass-app';
+        }
+    </script>
     <style>
         /* General Body Styles */
         body {
@@ -23,7 +42,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 2rem;
+            gap: 1.5rem;
             padding: 1rem;
             width: 100%;
             max-width: 400px;
@@ -33,6 +52,32 @@
             font-weight: 300;
             letter-spacing: 1px;
             color: #ffffff;
+            margin-bottom: 0;
+        }
+
+        #status-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            background-color: #2a2a2a;
+            padding: 0.5rem 1rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            min-height: 60px;
+        }
+        #compass-status {
+            font-size: 0.9em;
+            color: #3498db;
+        }
+        #my-user-id {
+            font-size: 0.8em;
+            color: #7f8c8d;
+            word-break: break-all;
+        }
+        #my-user-id span {
+            font-weight: bold;
+            color: #bdc3c7;
         }
 
         /* Compass Styles */
@@ -72,7 +117,6 @@
                 inset 0 0 25px rgba(0,0,0,0.5);
         }
         
-        /* Glassy effect overlay */
         .compass-rose::after {
             content: '';
             position: absolute;
@@ -87,13 +131,12 @@
             height: 280px;
             position: absolute;
             z-index: 10;
-            transition: transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28); /* Smooth, slightly bouncy rotation */
+            transition: transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
             display: flex;
             justify-content: center;
             align-items: center;
         }
         
-        /* North pointer */
         #needle::before {
             content: '';
             width: 0;
@@ -105,7 +148,6 @@
             top: 0;
         }
 
-        /* South pointer */
         #needle::after {
             content: '';
             width: 0;
@@ -117,7 +159,6 @@
             bottom: 0;
         }
         
-        /* Pivot point */
         .pivot {
             width: 20px;
             height: 20px;
@@ -128,7 +169,6 @@
             border: 3px solid #34495e;
         }
 
-        /* Cardinal directions */
         .rose-text {
             position: absolute;
             font-size: 1.5em;
@@ -137,20 +177,9 @@
             z-index: 5;
             text-shadow: 1px 1px 3px rgba(0,0,0,0.7);
         }
-        .rose-n { top: 10px; }
-        .rose-s { bottom: 10px; }
-        .rose-e { right: 10px; top: 50%; transform: translateY(-50%); }
-        .rose-w { left: 10px; top: 50%; transform: translateY(-50%); }
-
-        /* Inter-cardinal directions */
-        .rose-text-small {
-            font-size: 1.1em;
-            font-weight: 400;
-        }
-        .rose-ne { top: 50px; right: 50px; }
-        .rose-se { bottom: 50px; right: 50px; }
-        .rose-sw { bottom: 50px; left: 50px; }
-        .rose-nw { top: 50px; left: 50px; }
+        .rose-n { top: 10px; } .rose-s { bottom: 10px; } .rose-e { right: 10px; top: 50%; transform: translateY(-50%); } .rose-w { left: 10px; top: 50%; transform: translateY(-50%); }
+        .rose-text-small { font-size: 1.1em; font-weight: 400; }
+        .rose-ne { top: 50px; right: 50px; } .rose-se { bottom: 50px; right: 50px; } .rose-sw { bottom: 50px; left: 50px; } .rose-nw { top: 50px; left: 50px; }
 
         #heading {
             font-size: 3em;
@@ -158,13 +187,41 @@
             font-family: 'Courier New', Courier, monospace;
             color: #fff;
             margin: 0;
-            background-color: #2a2a2a;
-            padding: 10px 25px;
-            border-radius: 12px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
         }
 
-        /* UI Elements */
+        /* Remote Users List */
+        #remote-users-container {
+            width: 100%;
+        }
+        #remote-users-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 150px;
+            overflow-y: auto;
+            background-color: #2a2a2a;
+            border-radius: 12px;
+        }
+        #remote-users-list li {
+            padding: 12px 15px;
+            border-bottom: 1px solid #3a3a3a;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 0.9em;
+            color: #bdc3c7;
+        }
+        #remote-users-list li:last-child {
+            border-bottom: none;
+        }
+        #remote-users-list li:hover {
+            background-color: #34495e;
+        }
+        #remote-users-list li.active {
+            background-color: #3498db;
+            color: white;
+            font-weight: bold;
+        }
+
         #permission-btn {
             padding: 15px 30px;
             font-size: 1em;
@@ -178,117 +235,189 @@
             box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
         }
 
-        #permission-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.5);
-        }
-        
-        #permission-btn:active {
-            transform: translateY(0);
-            box-shadow: 0 2px 10px rgba(52, 152, 219, 0.4);
-        }
-
-        #error-message {
-            color: #e74c3c;
-            font-weight: bold;
-            background-color: rgba(231, 76, 60, 0.1);
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid #e74c3c;
-        }
-
-        .hidden {
-            display: none !important;
-        }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
     <div id="app">
         <h1>Device Compass</h1>
-        <div id="compass-container" class="hidden">
+
+        <div id="status-container">
+            <p id="compass-status">Initializing...</p>
+            <p id="my-user-id"></p>
+        </div>
+
+        <div id="compass-container">
             <div class="compass-rose">
                 <div id="needle"></div>
                 <div class="pivot"></div>
-                <div class="rose-text rose-n">N</div>
-                <div class="rose-text rose-e">E</div>
-                <div class="rose-text rose-s">S</div>
-                <div class="rose-text rose-w">W</div>
-                <div class="rose-text rose-text-small rose-ne">NE</div>
-                <div class="rose-text rose-text-small rose-se">SE</div>
-                <div class="rose-text rose-text-small rose-sw">SW</div>
-                <div class="rose-text rose-text-small rose-nw">NW</div>
+                <div class="rose-text rose-n">N</div> <div class="rose-text rose-e">E</div> <div class="rose-text rose-s">S</div> <div class="rose-text rose-w">W</div>
+                <div class="rose-text rose-text-small rose-ne">NE</div> <div class="rose-text rose-text-small rose-se">SE</div> <div class="rose-text rose-text-small rose-sw">SW</div> <div class="rose-text rose-text-small rose-nw">NW</div>
             </div>
             <p id="heading">--°</p>
         </div>
         
-        <button id="permission-btn">Activate Compass</button>
-        <p id="error-message"></p>
+        <div id="remote-users-container" class="hidden">
+            <p>Select a device to sync with:</p>
+            <ul id="remote-users-list"></ul>
+        </div>
+        
+        <button id="permission-btn" class="hidden">Activate Compass</button>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const compassContainer = document.getElementById('compass-container');
-            const needle = document.getElementById('needle');
-            const headingDisplay = document.getElementById('heading');
-            const permissionBtn = document.getElementById('permission-btn');
-            const errorMessage = document.getElementById('error-message');
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-            errorMessage.classList.add('hidden');
+        document.addEventListener('DOMContentLoaded', async () => {
+            const ui = {
+                compassContainer: document.getElementById('compass-container'),
+                needle: document.getElementById('needle'),
+                headingDisplay: document.getElementById('heading'),
+                permissionBtn: document.getElementById('permission-btn'),
+                remoteUsersContainer: document.getElementById('remote-users-container'),
+                remoteUsersList: document.getElementById('remote-users-list'),
+                status: document.getElementById('compass-status'),
+                myUserId: document.getElementById('my-user-id'),
+            };
 
-            if ('DeviceOrientationEvent' in window && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                permissionBtn.addEventListener('click', requestPermissionForIOS);
-            } else if ('DeviceOrientationEvent' in window) {
-                permissionBtn.addEventListener('click', () => {
-                   initCompass();
-                   window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-                });
-            } else {
-                showError('Sorry, your browser does not support the Device Orientation API.');
+            let db, auth, userId, hasCompass, remoteUnsubscribe, presenceInterval;
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+            async function setupFirebase() {
+                try {
+                    const firebaseConfig = JSON.parse(window.__firebase_config);
+                    const app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+                    
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                         await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    userId = auth.currentUser.uid;
+                    ui.myUserId.innerHTML = `Your ID: <span>${userId}</span>`;
+                    managePresence();
+                } catch (error) {
+                    console.error("Firebase Init Error:", error);
+                    ui.status.textContent = "Error connecting to service.";
+                }
+            }
+            
+            function managePresence() {
+                const userDocRef = doc(db, `artifacts/${appId}/public/data/users/${userId}`);
+                const updatePresence = () => {
+                     setDoc(userDocRef, { 
+                        hasCompass: hasCompass, 
+                        lastSeen: serverTimestamp() 
+                    }, { merge: true });
+                };
+                updatePresence();
+                presenceInterval = setInterval(updatePresence, 15000); // Update every 15 seconds
             }
 
-            function requestPermissionForIOS() {
-                DeviceOrientationEvent.requestPermission()
-                    .then(permissionState => {
-                        if (permissionState === 'granted') {
-                            window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-                            initCompass();
-                        } else {
-                            showError('Permission to access device orientation was denied.');
-                        }
-                    })
-                    .catch(error => {
-                        showError(`An error occurred: ${error.message}`);
-                        console.error(error);
-                    });
+            function updateCompassUI(alpha) {
+                if (alpha === null || alpha === undefined) return;
+                needle.style.transform = `rotate(${alpha}deg)`;
+                headingDisplay.textContent = `${Math.round(alpha)}°`;
             }
 
-            function initCompass() {
-                permissionBtn.classList.add('hidden');
-                compassContainer.classList.remove('hidden');
-            }
-
-            function handleOrientation(event) {
+            function handleLocalOrientation(event) {
                 let alpha = event.alpha;
                 if(typeof event.webkitCompassHeading !== "undefined") {
                     alpha = event.webkitCompassHeading; 
                 }
-
-                if (alpha !== null) {
-                    // Rotate the needle to point to the correct direction (alpha)
-                    // The compass rose background remains static.
-                    needle.style.transform = `rotate(${alpha}deg)`;
-                    
-                    headingDisplay.textContent = `${Math.round(alpha)}°`;
-                } else {
-                    showError("Could not retrieve compass heading. Your device may not have a magnetometer.");
-                }
+                updateCompassUI(alpha);
+                // Broadcast data to Firestore
+                const userDocRef = doc(db, `artifacts/${appId}/public/data/users/${userId}`);
+                setDoc(userDocRef, { alpha: alpha }, { merge: true });
             }
 
-            function showError(message) {
-                permissionBtn.classList.add('hidden');
-                compassContainer.classList.add('hidden');
-                errorMessage.textContent = message;
-                errorMessage.classList.remove('hidden');
+            function listenForBroadcasters() {
+                ui.remoteUsersContainer.classList.remove('hidden');
+                const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+                const q = query(
+                    collection(db, `artifacts/${appId}/public/data/users`), 
+                    where("hasCompass", "==", true),
+                    where("lastSeen", ">", tenMinutesAgo)
+                );
+
+                onSnapshot(q, (snapshot) => {
+                    ui.remoteUsersList.innerHTML = '';
+                    if (snapshot.empty) {
+                         ui.remoteUsersList.innerHTML = '<li>No active broadcasters found.</li>';
+                         return;
+                    }
+                    snapshot.forEach(doc => {
+                        if (doc.id === userId) return;
+                        const li = document.createElement('li');
+                        li.textContent = `User: ${doc.id.substring(0, 8)}...`;
+                        li.dataset.id = doc.id;
+                        li.addEventListener('click', () => subscribeToBroadcaster(doc.id));
+                        ui.remoteUsersList.appendChild(li);
+                    });
+                });
+            }
+
+            function subscribeToBroadcaster(broadcasterId) {
+                if (remoteUnsubscribe) remoteUnsubscribe(); // Stop listening to previous user
+                
+                document.querySelectorAll('#remote-users-list li').forEach(li => {
+                    li.classList.toggle('active', li.dataset.id === broadcasterId);
+                });
+
+                const userDocRef = doc(db, `artifacts/${appId}/public/data/users/${broadcasterId}`);
+                remoteUnsubscribe = onSnapshot(userDocRef, (doc) => {
+                    if (doc.exists()) {
+                        const data = doc.data();
+                        updateCompassUI(data.alpha);
+                        ui.status.textContent = `Synced with: ${broadcasterId.substring(0,8)}...`;
+                    } else {
+                        ui.status.textContent = 'Selected user went offline.';
+                        if(remoteUnsubscribe) remoteUnsubscribe();
+                    }
+                });
+            }
+
+            // --- Main Logic ---
+            await setupFirebase();
+
+            hasCompass = 'DeviceOrientationEvent' in window;
+            
+            if (hasCompass) {
+                ui.permissionBtn.classList.remove('hidden');
+                ui.status.textContent = 'Local compass available. Press activate.';
+                
+                const activate = () => {
+                    const permissionHandler = (startFn) => {
+                        startFn()
+                            .then(permissionState => {
+                                if (permissionState === 'granted') {
+                                    window.addEventListener('deviceorientationabsolute', handleLocalOrientation, true);
+                                    ui.permissionBtn.classList.add('hidden');
+                                    ui.status.textContent = 'Broadcasting your compass...';
+                                } else {
+                                    ui.status.textContent = 'Permission denied.';
+                                }
+                            })
+                            .catch(console.error);
+                    };
+
+                    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                        permissionHandler(DeviceOrientationEvent.requestPermission);
+                    } else {
+                         window.addEventListener('deviceorientationabsolute', handleLocalOrientation, true);
+                         ui.permissionBtn.classList.add('hidden');
+                         ui.status.textContent = 'Broadcasting your compass...';
+                    }
+                };
+                ui.permissionBtn.addEventListener('click', activate);
+
+            } else {
+                ui.status.textContent = 'No local compass detected.';
+                listenForBroadcasters();
             }
         });
     </script>
