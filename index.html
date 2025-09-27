@@ -361,27 +361,39 @@
 
             function listenForBroadcasters() {
                 ui.remoteUsersContainer.classList.remove('hidden');
-                const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
                 const q = query(
                     collection(db, `artifacts/${appId}/public/data/users`), 
-                    where("hasCompass", "==", true),
-                    where("lastSeen", ">", tenMinutesAgo)
+                    where("hasCompass", "==", true)
                 );
 
                 onSnapshot(q, (snapshot) => {
+                    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+                    const activeUsers = [];
+
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        const lastSeenDate = data.lastSeen?.toDate();
+                        if (doc.id !== userId && lastSeenDate && lastSeenDate > tenMinutesAgo) {
+                           activeUsers.push(doc);
+                        }
+                    });
+
                     ui.remoteUsersList.innerHTML = '';
-                    if (snapshot.empty) {
+                    if (activeUsers.length === 0) {
                          ui.remoteUsersList.innerHTML = '<li>No active broadcasters found.</li>';
                          return;
                     }
-                    snapshot.forEach(doc => {
-                        if (doc.id === userId) return;
+
+                    activeUsers.forEach(doc => {
                         const li = document.createElement('li');
-                        li.textContent = `User: ${doc.id}`;
+                        li.textContent = `User: ${doc.id.substring(0, 8)}...`;
                         li.dataset.id = doc.id;
                         li.addEventListener('click', () => subscribeToBroadcaster(doc.id));
                         ui.remoteUsersList.appendChild(li);
                     });
+                }, (error) => {
+                    console.error("Error listening for broadcasters:", error);
+                    ui.remoteUsersList.innerHTML = '<li>Error loading broadcasters.</li>';
                 });
             }
 
