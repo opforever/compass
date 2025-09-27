@@ -65,6 +65,7 @@
             border-radius: 12px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.4);
             min-height: 60px;
+            width: 90%;
         }
         #compass-status {
             font-size: 0.9em;
@@ -285,6 +286,30 @@
             let db, auth, userId, hasCompass, remoteUnsubscribe, presenceInterval;
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
+            // --- Robust Compass Detection ---
+            async function checkCompassAvailability() {
+                return new Promise((resolve) => {
+                    if (!('DeviceOrientationEvent' in window)) {
+                        resolve(false);
+                        return;
+                    }
+
+                    const timeout = setTimeout(() => {
+                        window.removeEventListener('deviceorientationabsolute', listener);
+                        resolve(false); // No event received, assume no compass
+                    }, 1500);
+
+                    const listener = (event) => {
+                        if (event.alpha !== null && typeof event.alpha !== 'undefined') {
+                            clearTimeout(timeout);
+                            window.removeEventListener('deviceorientationabsolute', listener);
+                            resolve(true); // Valid alpha received, compass exists
+                        }
+                    };
+                    window.addEventListener('deviceorientationabsolute', listener, true);
+                });
+            }
+
             async function setupFirebase() {
                 try {
                     const firebaseConfig = JSON.parse(window.__firebase_config);
@@ -299,7 +324,6 @@
                     }
                     userId = auth.currentUser.uid;
                     ui.myUserId.innerHTML = `Your ID: <span>${userId}</span>`;
-                    managePresence();
                 } catch (error) {
                     console.error("Firebase Init Error:", error);
                     ui.status.textContent = "Error connecting to service.";
@@ -307,21 +331,22 @@
             }
             
             function managePresence() {
+                if (!userId) return;
                 const userDocRef = doc(db, `artifacts/${appId}/public/data/users/${userId}`);
                 const updatePresence = () => {
                      setDoc(userDocRef, { 
-                        hasCompass: hasCompass, 
+                        hasCompass: hasCompass, // This is now guaranteed to be defined
                         lastSeen: serverTimestamp() 
                     }, { merge: true });
                 };
                 updatePresence();
-                presenceInterval = setInterval(updatePresence, 15000); // Update every 15 seconds
+                presenceInterval = setInterval(updatePresence, 15000);
             }
 
             function updateCompassUI(alpha) {
-                if (alpha === null || alpha === undefined) return;
-                needle.style.transform = `rotate(${alpha}deg)`;
-                headingDisplay.textContent = `${Math.round(alpha)}°`;
+                if (alpha === null || typeof alpha === 'undefined') return;
+                ui.needle.style.transform = `rotate(${alpha}deg)`;
+                ui.headingDisplay.textContent = `${Math.round(alpha)}°`;
             }
 
             function handleLocalOrientation(event) {
@@ -330,7 +355,6 @@
                     alpha = event.webkitCompassHeading; 
                 }
                 updateCompassUI(alpha);
-                // Broadcast data to Firestore
                 const userDocRef = doc(db, `artifacts/${appId}/public/data/users/${userId}`);
                 setDoc(userDocRef, { alpha: alpha }, { merge: true });
             }
@@ -353,7 +377,7 @@
                     snapshot.forEach(doc => {
                         if (doc.id === userId) return;
                         const li = document.createElement('li');
-                        li.textContent = `User: ${doc.id.substring(0, 8)}...`;
+                        li.textContent = `User: ${doc.id}`;
                         li.dataset.id = doc.id;
                         li.addEventListener('click', () => subscribeToBroadcaster(doc.id));
                         ui.remoteUsersList.appendChild(li);
@@ -362,7 +386,7 @@
             }
 
             function subscribeToBroadcaster(broadcasterId) {
-                if (remoteUnsubscribe) remoteUnsubscribe(); // Stop listening to previous user
+                if (remoteUnsubscribe) remoteUnsubscribe();
                 
                 document.querySelectorAll('#remote-users-list li').forEach(li => {
                     li.classList.toggle('active', li.dataset.id === broadcasterId);
@@ -381,42 +405,41 @@
                 });
             }
 
-            // --- Main Logic ---
+            // --- Main Execution Logic ---
             await setupFirebase();
 
-            hasCompass = 'DeviceOrientationEvent' in window;
+            hasCompass = await checkCompassAvailability(); // Reliable check first
             
+            managePresence(); // Then manage presence, fixing the error
+
             if (hasCompass) {
                 ui.permissionBtn.classList.remove('hidden');
                 ui.status.textContent = 'Local compass available. Press activate.';
                 
                 const activate = () => {
-                    const permissionHandler = (startFn) => {
-                        startFn()
-                            .then(permissionState => {
-                                if (permissionState === 'granted') {
-                                    window.addEventListener('deviceorientationabsolute', handleLocalOrientation, true);
-                                    ui.permissionBtn.classList.add('hidden');
-                                    ui.status.textContent = 'Broadcasting your compass...';
-                                } else {
-                                    ui.status.textContent = 'Permission denied.';
-                                }
-                            })
-                            .catch(console.error);
+                    const startListening = () => {
+                        window.addEventListener('deviceorientationabsolute', handleLocalOrientation, true);
+                        ui.permissionBtn.classList.add('hidden');
+                        ui.status.textContent = 'Broadcasting your compass...';
                     };
 
                     if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                        permissionHandler(DeviceOrientationEvent.requestPermission);
+                        DeviceOrientationEvent.requestPermission()
+                            .then(permissionState => {
+                                if (permissionState === 'granted') {
+                                    startListening();
+                                } else {
+                                    ui.status.textContent = 'Permission denied.';
+                                }
+                            }).catch(console.error);
                     } else {
-                         window.addEventListener('deviceorientationabsolute', handleLocalOrientation, true);
-                         ui.permissionBtn.classList.add('hidden');
-                         ui.status.textContent = 'Broadcasting your compass...';
+                         startListening();
                     }
                 };
                 ui.permissionBtn.addEventListener('click', activate);
 
             } else {
-                ui.status.textContent = 'No local compass detected.';
+                ui.status.textContent = 'No local compass detected. Searching...';
                 listenForBroadcasters();
             }
         });
