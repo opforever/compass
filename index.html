@@ -356,7 +356,8 @@
                 }
                 updateCompassUI(alpha);
                 const userDocRef = doc(db, `artifacts/${appId}/public/data/users/${userId}`);
-                setDoc(userDocRef, { alpha: alpha }, { merge: true });
+                // Update timestamp with every broadcast to ensure immediate visibility
+                setDoc(userDocRef, { alpha: alpha, lastSeen: serverTimestamp() }, { merge: true });
             }
 
             function listenForBroadcasters() {
