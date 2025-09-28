@@ -44,7 +44,6 @@
             color: var(--text-light);
             text-align: center;
             -webkit-tap-highlight-color: transparent;
-            padding-bottom: 150px;
         }
 
         #app {
@@ -140,23 +139,38 @@
         .mark.major { height: 20px; width: 2px; background-color: var(--text-light); }
 
         #needle {
-            width: 20px; height: 140px;
-            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-            transform-origin: 10px 140px;
+            width: 20px;
+            height: 280px; /* 140px for red, 140px for grey */
+            position: absolute;
+            top: 10px; /* (300px - 280px) / 2 */
+            left: 50%;
+            transform: translateX(-50%);
+            transform-origin: center center; /* Rotate around the true center */
             z-index: 10;
             transition: transform 0.3s ease-out;
-            filter: drop-shadow(0 5px 10px rgba(0,0,0,0.3));
+            /* JS applies rotation to this container */
         }
+
         #needle::before { /* Red tip */
             content: '';
-            position: absolute; width: 0; height: 0;
-            border-left: 10px solid transparent; border-right: 10px solid transparent;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0; height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
             border-bottom: 140px solid var(--needle-color);
+            filter: drop-shadow(0 5px 10px rgba(0,0,0,0.3));
         }
+
         #needle::after { /* Grey tail */
              content: '';
-            position: absolute; width: 0; height: 0; bottom: -140px;
-            border-left: 10px solid transparent; border-right: 10px solid transparent;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0; height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
             border-top: 140px solid var(--text-dark);
         }
         
@@ -190,12 +204,6 @@
 
         .hidden { display: none !important; }
 
-        /* Debug Console Styles */
-        #debug-console { position: fixed; bottom: 0; left: 0; width: 100%; max-height: 150px; background-color: rgba(0, 0, 0, 0.85); border-top: 1px solid #444; font-family: 'Courier New', Courier, monospace; font-size: 12px; z-index: 100; }
-        #debug-header { background-color: #333; color: #fff; padding: 4px 8px; font-weight: bold; }
-        #debug-log-list { list-style: none; padding: 8px; margin: 0; height: 120px; overflow-y: auto; color: #ddd; }
-        #debug-log-list li { padding-bottom: 4px; border-bottom: 1px dotted #555; margin-bottom: 4px; word-wrap: break-word; }
-        #debug-log-list .log-info { color: #fff; } #debug-log-list .log-success { color: #2ecc71; } #debug-log-list .log-error { color: #e74c3c; font-weight: bold; } #debug-log-list .log-warn { color: #f39c12; }
     </style>
 </head>
 <body>
@@ -232,10 +240,7 @@
             <button id="permission-btn" class="hidden">Activate Compass</button>
         </div>
     </div>
-    <div id="debug-console">
-        <div id="debug-header">Debug Log</div>
-        <ul id="debug-log-list"></ul>
-    </div>
+    
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -255,7 +260,6 @@
                 remoteUsersList: document.getElementById('remote-users-list'),
                 status: document.getElementById('compass-status'),
                 myUserId: document.getElementById('my-user-id'),
-                debugLogList: document.getElementById('debug-log-list'),
                 compassMarkings: document.querySelector('.compass-markings'),
             };
 
@@ -273,8 +277,6 @@
                 ui.compassMarkings.appendChild(mark);
             }
             
-            function logToScreen(message, level = 'info') { /* ... existing logToScreen code ... */ }
-            
             function initMainApp() {
                 ui.nameEntryContainer.classList.add('hidden');
                 ui.mainContent.classList.remove('hidden');
@@ -283,7 +285,6 @@
 
             // --- Main App Logic ---
             async function runAppLogic() {
-                logToScreen("DOM content loaded. Starting app.");
                 await setupFirebase();
                 hasCompass = await checkCompassAvailability();
                 managePresence();
@@ -297,12 +298,54 @@
                     listenForBroadcasters();
                 }
             }
+            
+            async function checkCompassAvailability() {
+                return new Promise((resolve) => {
+                    if (!('DeviceOrientationEvent' in window)) {
+                        resolve(false);
+                        return;
+                    }
+                    const timeout = setTimeout(() => {
+                        window.removeEventListener('deviceorientationabsolute', listener);
+                        resolve(false);
+                    }, 2000);
+                    const listener = (event) => {
+                        if (event.alpha !== null && typeof event.alpha !== 'undefined') {
+                            clearTimeout(timeout);
+                            window.removeEventListener('deviceorientationabsolute', listener);
+                            resolve(true);
+                        }
+                    };
+                    window.addEventListener('deviceorientationabsolute', listener, true);
+                });
+            }
 
-            async function setupFirebase() { /* ... existing setupFirebase code ... */ }
+            async function setupFirebase() {
+                try {
+                    const firebaseConfig = JSON.parse(window.__firebase_config);
+                    const app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                         try {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } catch (e) {
+                            await signInAnonymously(auth);
+                        }
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    userId = auth.currentUser.uid;
+                    ui.myUserId.innerHTML = `Your Name: <span>${displayName}</span>`;
+                } catch (error) {
+                    console.error("Firebase Init Error:", error);
+                    ui.status.textContent = "Error connecting to service.";
+                }
+            }
             
             function managePresence() {
                 if (!userId || !displayName) return;
-                logToScreen(`Managing presence for ${displayName}. hasCompass: ${hasCompass}.`);
                 const userDocRef = doc(db, `artifacts/${appId}/public/data/users/${userId}`);
                 const updatePresence = () => {
                      const dataToSet = { 
@@ -310,55 +353,98 @@
                         hasCompass: hasCompass,
                         lastSeen: serverTimestamp() 
                     };
-                    setDoc(userDocRef, dataToSet, { merge: true })
-                        .catch(e => logToScreen(`Presence update failed: ${e.message}`, 'error'));
+                    setDoc(userDocRef, dataToSet, { merge: true });
                 };
                 updatePresence();
                 presenceInterval = setInterval(updatePresence, 15000);
             }
 
-            function updateCompassUI(alpha) { /* ... existing updateCompassUI code ... */ }
+            function updateCompassUI(alpha) {
+                if (alpha === null || typeof alpha === 'undefined') return;
+                ui.needle.style.transform = `rotate(${alpha}deg)`;
+                ui.headingDisplay.textContent = `${Math.round(alpha)}°`;
+            }
 
             function handleLocalOrientation(event) {
                 let alpha = event.alpha;
                 if(typeof event.webkitCompassHeading !== "undefined") alpha = event.webkitCompassHeading; 
                 updateCompassUI(alpha);
                 const userDocRef = doc(db, `artifacts/${appId}/public/data/users/${userId}`);
-                setDoc(userDocRef, { alpha: alpha, lastSeen: serverTimestamp(), displayName: displayName }, { merge: true })
-                    .catch(e => logToScreen(`Firestore write failed: ${e.message}`, 'error'));
+                setDoc(userDocRef, { alpha: alpha, lastSeen: serverTimestamp(), displayName: displayName }, { merge: true });
             }
 
             function listenForBroadcasters() {
-                /* ... existing listenForBroadcasters code ... */
-                // Modification:
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    const lastSeenDate = data.lastSeen?.toDate();
-                    // ... existing logic
-                    if (doc.id !== userId && lastSeenDate && lastSeenDate > tenMinutesAgo) {
-                       // ... existing logic
-                       const li = document.createElement('li');
-                       li.textContent = data.displayName || `User: ${doc.id.substring(0, 8)}...`; // Use displayName
-                       // ... existing logic
+                ui.remoteUsersContainer.classList.remove('hidden');
+                const q = query(
+                    collection(db, `artifacts/${appId}/public/data/users`), 
+                    where("hasCompass", "==", true)
+                );
+                onSnapshot(q, (snapshot) => {
+                    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+                    const activeUsers = [];
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        const lastSeenDate = data.lastSeen?.toDate();
+                        if (doc.id !== userId && lastSeenDate && lastSeenDate > tenMinutesAgo) {
+                           activeUsers.push(doc);
+                        }
+                    });
+                    ui.remoteUsersList.innerHTML = '';
+                    if (activeUsers.length === 0) {
+                         ui.remoteUsersList.innerHTML = '<li>No active broadcasters found.</li>';
+                         return;
                     }
+                    activeUsers.forEach(doc => {
+                       const data = doc.data();
+                       const li = document.createElement('li');
+                       li.textContent = data.displayName || `User: ${doc.id.substring(0, 8)}...`;
+                       li.dataset.id = doc.id;
+                       li.addEventListener('click', () => subscribeToBroadcaster(doc.id));
+                       ui.remoteUsersList.appendChild(li);
+                    });
+                }, (error) => {
+                     console.error("Error listening for broadcasters:", error);
+                     ui.remoteUsersList.innerHTML = '<li>Error loading broadcasters.</li>';
                 });
             }
 
             function subscribeToBroadcaster(broadcasterId) {
-                /* ... existing subscribeToBroadcaster code ... */
-                // Modification:
-                 onSnapshot(userDocRef, (doc) => {
+                if (remoteUnsubscribe) remoteUnsubscribe();
+                document.querySelectorAll('#remote-users-list li').forEach(li => {
+                    li.classList.toggle('active', li.dataset.id === broadcasterId);
+                });
+                const userDocRef = doc(db, `artifacts/${appId}/public/data/users/${broadcasterId}`);
+                remoteUnsubscribe = onSnapshot(userDocRef, (doc) => {
                     if (doc.exists()) {
                         const data = doc.data();
-                        // ... existing logic
-                        ui.status.textContent = `Synced with: ${data.displayName || broadcasterId.substring(0,8)}`; // Use displayName
+                        updateCompassUI(data.alpha);
+                        ui.status.textContent = `Synced with: ${data.displayName || broadcasterId.substring(0,8)}`;
                     } else {
-                        // ... existing logic
+                        ui.status.textContent = 'Selected user went offline.';
+                        if(remoteUnsubscribe) remoteUnsubscribe();
                     }
                 });
             }
             
-            function activateCompass() { /* ... existing activateCompass code ... */ }
+            function activateCompass() {
+                const startListening = () => {
+                    window.addEventListener('deviceorientationabsolute', handleLocalOrientation, true);
+                    ui.permissionBtn.classList.add('hidden');
+                    ui.status.textContent = 'Broadcasting your compass...';
+                };
+                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(permissionState => {
+                            if (permissionState === 'granted') {
+                                startListening();
+                            } else {
+                                ui.status.textContent = 'Permission denied.';
+                            }
+                        }).catch(console.error);
+                } else {
+                     startListening();
+                }
+            }
 
             // --- Initial Load Logic ---
             const savedName = localStorage.getItem('compassDisplayName');
@@ -366,15 +452,12 @@
                 displayName = savedName;
                 initMainApp();
             }
-
             ui.setNameBtn.addEventListener('click', () => {
                 const name = ui.nameInput.value.trim();
                 if (name) {
                     displayName = name;
                     localStorage.setItem('compassDisplayName', displayName);
                     initMainApp();
-                } else {
-                    alert("Please enter a name.");
                 }
             });
         });
