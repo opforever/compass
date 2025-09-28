@@ -111,7 +111,8 @@
         /* NEW Compass Styles */
         #compass-container {
             display: flex; flex-direction: column; align-items: center;
-            gap: 1.5rem; width: 100%;
+            gap: 0.5rem; /* Reduced gap */
+            width: 100%;
         }
         .compass-rose {
             width: 300px; height: 300px;
@@ -143,12 +144,10 @@
             height: 280px; /* 140px for red, 140px for grey */
             position: absolute;
             top: 10px; /* (300px - 280px) / 2 */
-            left: 50%;
-            transform: translateX(-50%);
+            left: calc(50% - 10px); /* (width / 2) */
             transform-origin: center center; /* Rotate around the true center */
             z-index: 10;
-            transition: transform 0.3s ease-out;
-            /* JS applies rotation to this container */
+            transition: transform 0.8s cubic-bezier(0.19, 1, 0.22, 1);
         }
 
         #needle::before { /* Red tip */
@@ -191,7 +190,14 @@
 
         #heading {
             font-size: 3em; font-weight: 200;
-            font-family: 'Courier New', Courier, monospace; color: #fff; margin: 0;
+            font-family: 'Courier New', Courier, monospace; color: #fff; margin: 10px 0 0 0;
+        }
+
+        #direction-text {
+            font-size: 1.2em;
+            color: var(--text-dark);
+            margin: 0;
+            font-weight: 300;
         }
 
         /* Remote Users List */
@@ -232,6 +238,7 @@
                     <div class="rose-text rose-w">W</div>
                 </div>
                 <p id="heading">--°</p>
+                <p id="direction-text">--</p>
             </div>
             <div id="remote-users-container" class="hidden">
                 <p>Select a device to sync with:</p>
@@ -255,6 +262,7 @@
                 compassContainer: document.getElementById('compass-container'),
                 needle: document.getElementById('needle'),
                 headingDisplay: document.getElementById('heading'),
+                directionText: document.getElementById('direction-text'),
                 permissionBtn: document.getElementById('permission-btn'),
                 remoteUsersContainer: document.getElementById('remote-users-container'),
                 remoteUsersList: document.getElementById('remote-users-list'),
@@ -264,6 +272,7 @@
             };
 
             let db, auth, userId, displayName, hasCompass, remoteUnsubscribe, presenceInterval;
+            let currentRotation = 0; // For smooth rotation
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             
             // --- UI Setup ---
@@ -302,8 +311,7 @@
             async function checkCompassAvailability() {
                 return new Promise((resolve) => {
                     if (!('DeviceOrientationEvent' in window)) {
-                        resolve(false);
-                        return;
+                        resolve(false); return;
                     }
                     const timeout = setTimeout(() => {
                         window.removeEventListener('deviceorientationabsolute', listener);
@@ -326,16 +334,9 @@
                     const app = initializeApp(firebaseConfig);
                     db = getFirestore(app);
                     auth = getAuth(app);
-
                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                         try {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } catch (e) {
-                            await signInAnonymously(auth);
-                        }
-                    } else {
-                        await signInAnonymously(auth);
-                    }
+                         try { await signInWithCustomToken(auth, __initial_auth_token); } catch (e) { await signInAnonymously(auth); }
+                    } else { await signInAnonymously(auth); }
                     userId = auth.currentUser.uid;
                     ui.myUserId.innerHTML = `Your Name: <span>${displayName}</span>`;
                 } catch (error) {
@@ -349,9 +350,7 @@
                 const userDocRef = doc(db, `artifacts/${appId}/public/data/users/${userId}`);
                 const updatePresence = () => {
                      const dataToSet = { 
-                        displayName: displayName,
-                        hasCompass: hasCompass,
-                        lastSeen: serverTimestamp() 
+                        displayName: displayName, hasCompass: hasCompass, lastSeen: serverTimestamp() 
                     };
                     setDoc(userDocRef, dataToSet, { merge: true });
                 };
@@ -359,10 +358,24 @@
                 presenceInterval = setInterval(updatePresence, 15000);
             }
 
+            function getDirection(angle) {
+                const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+                const index = Math.round(angle / 22.5) % 16;
+                return directions[index];
+            }
+
             function updateCompassUI(alpha) {
                 if (alpha === null || typeof alpha === 'undefined') return;
-                ui.needle.style.transform = `rotate(${alpha}deg)`;
+
+                // Logic for smooth rotation across 0/360 boundary
+                let diff = alpha - (currentRotation % 360);
+                if (diff < -180) diff += 360;
+                if (diff > 180) diff -= 360;
+                currentRotation += diff;
+
+                ui.needle.style.transform = `rotate(${currentRotation}deg)`;
                 ui.headingDisplay.textContent = `${Math.round(alpha)}°`;
+                ui.directionText.textContent = getDirection(alpha);
             }
 
             function handleLocalOrientation(event) {
@@ -375,10 +388,7 @@
 
             function listenForBroadcasters() {
                 ui.remoteUsersContainer.classList.remove('hidden');
-                const q = query(
-                    collection(db, `artifacts/${appId}/public/data/users`), 
-                    where("hasCompass", "==", true)
-                );
+                const q = query(collection(db, `artifacts/${appId}/public/data/users`), where("hasCompass", "==", true));
                 onSnapshot(q, (snapshot) => {
                     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
                     const activeUsers = [];
@@ -435,11 +445,8 @@
                 if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                     DeviceOrientationEvent.requestPermission()
                         .then(permissionState => {
-                            if (permissionState === 'granted') {
-                                startListening();
-                            } else {
-                                ui.status.textContent = 'Permission denied.';
-                            }
+                            if (permissionState === 'granted') startListening();
+                            else ui.status.textContent = 'Permission denied.';
                         }).catch(console.error);
                 } else {
                      startListening();
